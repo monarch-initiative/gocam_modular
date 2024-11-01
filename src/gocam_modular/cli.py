@@ -1,15 +1,17 @@
 """Command line interface for gocam_modular."""
-import logging
+import time
 import json
-import yaml
-from warnings import warn
+import os
 from pathlib import Path
+import typer
+from tqdm import tqdm
+from warnings import warn
 
+import logging
 from kghub_downloader.download_utils import download_from_yaml
 from koza.cli_utils import transform_source
 import typer
 from gocam.translation import MinervaWrapper
-from tqdm import tqdm
 
 app = typer.Typer()
 logger = logging.getLogger(__name__)
@@ -26,31 +28,28 @@ def callback(version: bool = typer.Option(False, "--version", is_eager=True),
 
 
 @app.command()
-def download(format:str = "json",
+def download(download_dir: str = "data",
              force: bool = typer.Option(False, help="Force download of data, even if it exists")):
     """Download data for gocam_modular."""
     typer.echo("Downloading data for gocam_modular...")
     download_config = Path(__file__).parent / "download.yaml"
-    try:
-        download_from_yaml(yaml_file=download_config, output_dir=".", ignore_cache=force)
-    except TypeError as e:
-        warn("Couldn't download anything from download.yaml (empty?)")
+    download_from_yaml(yaml_file=download_config, output_dir=".", ignore_cache=force)
 
     # download GOCAMs
     """Fetch GO-CAM models."""
     wrapper = MinervaWrapper()
-
     model_ids = wrapper.models_ids()
 
     downloaded_models = []
     for model_id in tqdm(model_ids, desc="fetching GO-CAM models"):
-        model = wrapper.fetch_model(model_id)
-        model_dict = model.model_dump(exclude_none=True)
-        downloaded_models.append(model_dict)
+        model_dict = fetch_model_with_retry(wrapper, model_id)
+        if model_dict is not None:
+            downloaded_models.append(model_dict)
 
     # save the models to a file
-    with open("gocam_models.json", "w") as f:
+    with open(os.path.join(download_dir, "gocam_models.json"), "w") as f:
         json.dump(downloaded_models, f, indent=2)
+
 
 @app.command()
 def transform(
@@ -72,3 +71,25 @@ def transform(
 
 if __name__ == "__main__":
     app()
+
+
+def fetch_model_with_retry(wrapper, model_id, max_retries=5):
+    """Fetch model with exponential backoff retry."""
+    retries = 0
+    wait_time = 1  # initial wait time in seconds
+
+    while retries < max_retries:
+        try:
+            model = wrapper.fetch_model(model_id)
+            return model.model_dump(exclude_none=True)
+        except Exception as e:
+            if "429" in str(e):  # check for too many requests error
+                retries += 1
+                typer.echo(f"429 Too Many Requests - Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+                wait_time *= 2  # exponential backoff
+            else:
+                typer.echo(f"Failed to fetch model {model_id}: {e}")
+                break  # break if it's not a rate-limiting error
+    warn(f"Exceeded maximum retries for model {model_id}")
+    return None
