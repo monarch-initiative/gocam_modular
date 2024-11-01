@@ -1,19 +1,15 @@
 """Command line interface for gocam_modular."""
 import logging
-
+import json
+import yaml
+from warnings import warn
 from pathlib import Path
 
 from kghub_downloader.download_utils import download_from_yaml
 from koza.cli_utils import transform_source
 import typer
-
-from gocam import __version__
-from gocam.datamodel import Model
 from gocam.translation import MinervaWrapper
-from gocam.translation.cx2 import model_to_cx2
-
-import json
-import yaml
+from tqdm import tqdm
 
 app = typer.Typer()
 logger = logging.getLogger(__name__)
@@ -46,19 +42,15 @@ def download(format:str = "json",
 
     model_ids = wrapper.models_ids()
 
-    downloaded_models = None
-    for model_id in model_ids:
+    downloaded_models = []
+    for model_id in tqdm(model_ids, desc="fetching GO-CAM models"):
         model = wrapper.fetch_model(model_id)
         model_dict = model.model_dump(exclude_none=True)
+        downloaded_models.append(model_dict)
 
-        if format == "json":
-            downloaded_models = json.dumps(model_dict, indent=2)
-        elif format == "yaml":
-            downloaded_models = yaml.dump(model_dict, sort_keys=False)
-        else:
-            downloaded_models = model.model_dump()
-
-    print(downloaded_models)
+    # save the models to a file
+    with open("gocam_models.json", "w") as f:
+        json.dump(downloaded_models, f, indent=2)
 
 @app.command()
 def transform(
