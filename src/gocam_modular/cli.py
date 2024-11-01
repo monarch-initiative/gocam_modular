@@ -3,7 +3,6 @@ import time
 import json
 import os
 from pathlib import Path
-import typer
 from tqdm import tqdm
 from warnings import warn
 

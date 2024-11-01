@@ -1,32 +1,52 @@
-import uuid  # For generating UUIDs for associations
+from koza.cli_utils import transform_source
 
-from biolink_model.datamodel.pydanticmodel_v2 import *  # Replace * with any necessary data classes from the Biolink Model
-from koza.cli_utils import get_koza_app
 
-koza_app = get_koza_app("GO Consortium_ingest of GOCAM models")
+def process_activity(activity, model_id):
+    # Process each activity to generate edges
+    edges = []
+    for key, assoc in associations.items():
+        if assoc and "term" in assoc:
+            edge = {
+                "subject": activity["id"],
+                "predicate": key,
+                "object": assoc["term"],
+                "relation": key,
+                "provided_by": model_id
+            }
+            edges.append(edge)
+    return edges
 
-while (row := koza_app.get_row()) is not None:
-    # Code to transform each row of data
-    # For more information, see https://koza.monarchinitiative.org/Ingests/transform
-    entity_a = Entity(
-        id=f"XMPL:00000{row['example_column_1'].split('_')[-1]}",
-        name=row["example_column_1"],
-        category=["biolink:Entity"],
-    )
-    entity_b = Entity(
-        id=f"XMPL:00000{row['example_column_2'].split('_')[-1]}",
-        name=row["example_column_2"],
-        category=["biolink:Entity"],
-    )
-    association = Association(
-        id=str(uuid.uuid1()),
-        subject=row["example_column_1"],
-        predicate=row["example_column_3"],
-        object=row["example_column_2"],
-        subject_category="SUBJ",
-        object_category="OBJ",
-        category=["biolink:Association"],
-        knowledge_level="not_provided",
-        agent_type="not_provided",
-    )
-    koza_app.write(entity_a, entity_b, association)
+
+# Main transformation function
+def transform_gocam():
+    data = transform_source()
+    nodes = []
+    edges = []
+
+    # Iterate over each model in data
+    for model in data:
+        model_id = model["id"]
+        taxon = model.get("taxon", "")
+
+        # Process objects as nodes
+        for obj in model.get("objects", []):
+            node = {
+                "id": obj["id"],
+                "name": obj.get("label", ""),
+                "category": obj.get("type", "gocam:Object"),
+                "taxon": taxon
+            }
+            nodes.append(node)
+
+        # Process activities as nodes and edges
+        for activity in model.get("activities", []):
+            nodes.append({
+                "id": activity["id"],
+                "name": "",
+                "category": "gocam:Activity",
+                "taxon": taxon
+            })
+            edges.extend(process_activity(activity, model_id))
+
+    # Return nodes and edges
+    return nodes, edges
