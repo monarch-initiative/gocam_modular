@@ -1,0 +1,15 @@
+# Changes here will be overwritten by Copier
+_commit: 08e42af
+_src_path: https://github.com/monarch-initiative/monarch-project-copier
+copyright_year: '2025'
+email: justaddcoffee@gmail.com
+full_name: Justin Reese
+gh_action_docs_preview: false
+github_handle: monarch-initiative
+github_org: monarch-initiative
+license: BSD-3-Clause
+project_description: 'A fairly trivial ingest of Translator''s GOCAM ingest, so we
+    have something to ingest '
+project_name: gocam_modular
+project_slug: gocam_modular
+
