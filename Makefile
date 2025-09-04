@@ -15,10 +15,13 @@ help:
 	@echo "  test         - Run all tests"
 	@echo "  clean        - Clean up temporary files and directories"
 
-# Run the translator ingest
+# Run the translator ingest and generate TSV files
 ingest:
 	@echo "Running translator ingest for go_cam sources..."
-	uv run python -c "from gocam_modular.translator_ingest import checkout_and_run_translator_ingests; repo_path, result = checkout_and_run_translator_ingests(); print(f'Repository cloned to: {repo_path}'); print(f'Make output:\\n{result.stdout}'); print(f'Make stderr:\\n{result.stderr}') if result.stderr else None"
+	@uv run python -c "import sys; sys.path.insert(0, 'src'); from gocam_modular.translator_ingest import checkout_and_run_translator_ingests; from pathlib import Path; import shutil; repo_path, result = checkout_and_run_translator_ingests(); output_dir = Path('output'); output_dir.mkdir(exist_ok=True); go_cam_dir = repo_path / 'data' / 'go_cam'; [shutil.copy2(f, output_dir / f.name) for f in go_cam_dir.iterdir() if f.is_file()]; print(f'Files copied from: {go_cam_dir}')"
+	@echo "Converting JSONL files to TSV format..."
+	@uv run python scripts/convert_to_tsv.py
+	@echo "Ingest completed successfully!"
 
 # Clean up and run ingest
 ingest-clean: clean ingest
